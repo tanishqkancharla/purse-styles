@@ -9,17 +9,14 @@ import typescript from "typescript"
 const packageJson = JSON.parse(fs.readFileSync("./package.json").toString())
 
 const {
-	name,
 	source: entryFile,
-	main: cjsOutFile,
-	module: esmOutFile,
+	main: esmOutFile,
 	peerDependencies = {},
 	dependencies = {},
 } = packageJson
 
 assert(entryFile, "`source` (entry point) not specified in package.json")
-assert(cjsOutFile, "`main` (cjs out file) not specified in package.json")
-assert(esmOutFile, "`module` (esm out file) not specified in package.json")
+assert(esmOutFile, "`main` (esm out file) not specified in package.json")
 
 async function main() {
 	await fs.promises.rm("dist", { recursive: true, force: true })
@@ -40,20 +37,12 @@ const sharedConfig: esbuild.BuildOptions = {
 }
 
 function runEsbuild() {
-	return Promise.all([
-		esbuild
-			.build({ ...sharedConfig, format: "esm", outfile: esmOutFile })
-			.then((r) => {
-				console.log(`Wrote ${esmOutFile}`)
-				return r
-			}),
-		esbuild
-			.build({ ...sharedConfig, format: "cjs", outfile: cjsOutFile })
-			.then((r) => {
-				console.log(`Wrote ${cjsOutFile}`)
-				return r
-			}),
-	])
+	return esbuild
+		.build({ ...sharedConfig, format: "esm", outfile: esmOutFile })
+		.then((r) => {
+			console.log(`Wrote ${esmOutFile}`)
+			return r
+		})
 }
 
 function runTypeScript() {

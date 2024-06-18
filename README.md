@@ -1,30 +1,50 @@
-# npm-ts-boilerplate
-A boilerplate for typescript packages for npm. [Esbuild](https://esbuild.github.io), [Vitest](https://vitest.dev).
+# Purse
 
-```sh
-# Build into dist folder
-npm run build
+A basic styling solution for web apps with an emphasis on simplicity and purity. The goal is to build a CSS-in-JS version of Tailwind's classname composition model.
 
-# Check types
-npm run check
+```tsx
+// Define styles outside your components
+ const truncate = style({
+	overflow: "hidden",
+	lineClamp: 1,
+	textOverflow: "ellipsis",
+})
 
-npm run test
+// Compose styles together
+const actionButton = style(
+  truncate,
+  text[14],
+  fonts.interface,
+  border[1]
+)
 
-# Build and publish to NPM (make sure the version is bumped)
-npm run release
+// Use pseudo or other complex selectors
+const button = style({
+  "&:disabled": {
+		backgroundColor: indigo.indigo8,
+	},
+	"&:hover[disabled=false]": {
+		backgroundColor: indigo.indigo10,
+	},
+})
 
-# Print the bundlesize of the minified package and exit
-npm run bundlesize
+// Use styles in your components dynamically
+const buttonClassName = useStyles(props.quiet ? quietButtonStyles : buttonStyles)
+
+// Can also use CSS properties directly
+const blueTextClassName = useStyles({
+  backgroundColor: "blue",
+})
 ```
 
-I've been iterating on this for a while. Here are the interesting bits:
+## Usage
 
-* Packages are bundled into `index.cjs` (for CommonJS) and `index.js` (for ESM).
-* Types are all bundled into `index.d.ts`
-* Sourcemaps for bundles point to `src` directory. One could argue the bundles are readable by themselves (since they're not minified), but the source map files are small, and reading in Typescript vs. Javascript can help debug (you know the type of each variable).
-* Only `src` and `dist` folders are published to NPM.
-* Tests are in `*.test.ts` files, run by Vitest
+Wrap your app in `PurseProvider`:
 
-The reason I don't just use Parcel (my preferred build system) is because of:
-* https://github.com/parcel-bundler/parcel/issues/7951
-* Parcel mangles names, and I didn't know how to turn that off.
+```tsx
+<PurseProvider>
+  <App/>
+</PurseProvider>
+```
+
+That's all! No build step.
