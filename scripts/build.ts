@@ -55,10 +55,10 @@ function runTypeScript() {
 		typescript.sys,
 		"./",
 	)
-	const program = typescript.createProgram(
-		tsConfigParseResult.fileNames,
-		tsConfigParseResult.options,
-	)
+	const program = typescript.createProgram(tsConfigParseResult.fileNames, {
+		...tsConfigParseResult.options,
+		emitDeclarationOnly: true,
+	})
 
 	program.emit()
 
