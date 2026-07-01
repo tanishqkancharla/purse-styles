@@ -96,8 +96,13 @@ export type StyleElement = {
 	className: string
 }
 
-function isStyleElement(o: any): o is StyleElement {
-	return "__style__" in o && o["__style__"] === __style__
+function isStyleElement(o: unknown): o is StyleElement {
+	return (
+		o != null &&
+		typeof o === "object" &&
+		"__style__" in o &&
+		o["__style__"] === __style__
+	)
 }
 
 const DEV = process.env.NODE_ENV === "development"
@@ -471,13 +476,17 @@ function compileCSS(properties: CSSProperties): StyleElement["owned"] {
 	return { styleRules, className }
 }
 
-export function style(
-	...styleElementsOrCSS: (CSSProperties | StyleElement)[]
-): StyleElement {
+export type StyleArgument = CSSProperties | StyleElement | false | null | undefined
+
+export function style(...styleElementsOrCSS: StyleArgument[]): StyleElement {
 	let composed: StyleElement[] = []
 	let cssPropertyGroups: CSSProperties[] = []
 
 	for (const styleElementOrCSS of styleElementsOrCSS) {
+		if (styleElementOrCSS == null || styleElementOrCSS === false) {
+			continue
+		}
+
 		if (isStyleElement(styleElementOrCSS)) {
 			composed.push(styleElementOrCSS)
 		} else {
@@ -520,9 +529,7 @@ export function useInjectGlobalStyles(
 	}, deps)
 }
 
-export function useStyles(
-	...styleElementsOrCSS: (CSSProperties | StyleElement)[]
-): string {
+export function useStyles(...styleElementsOrCSS: StyleArgument[]): string {
 	const styleApi = useRequiredContext(PurseContext)
 
 	// let composed: StyleElement[] = []

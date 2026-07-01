@@ -3,6 +3,7 @@ export {
 	InMemoryStyleApi,
 	PurseProvider,
 	StyleApi,
+	StyleArgument,
 	StyleElement,
 	createInMemoryStyleApi,
 	style,
