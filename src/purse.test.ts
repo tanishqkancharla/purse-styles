@@ -87,6 +87,20 @@ describe("Purse", () => {
 		])
 	})
 
+	it("Skips falsy style arguments", () => {
+		const base = style({ color: "red" })
+		const composed = style(base, undefined, null, false, { margin: "8px" })
+
+		expect(composed.composed).toHaveLength(1)
+		assert.strictEqual(composed.composed[0], base)
+		assert(composed.owned !== undefined)
+		expect(composed.owned.styleRules).toContain(
+			`.${composed.owned.className}{margin:8px;}`,
+		)
+		assert.ok(composed.className.includes(base.className))
+		assert.ok(composed.className.includes(composed.owned.className))
+	})
+
 	it.skip("Inserts into given style element correctly", () => {})
 	it.skip("Works if you pass style rule or object to useStyles", () => {})
 	it.skip("Works if you pass multiple style rule or object to useStyles", () => {})
