@@ -2,7 +2,7 @@
 	"name": "purse-styles",
 	"type": "module",
 	"main": "./dist/index.js",
-	"version": "0.0.2",
+	"version": "0.1.2",
 	"author": "Tanishq Kancharla <tanishqkancharla3@gmail.com>",
 	"description": "A basic styling solution for web apps with an emphasis on simplicity and purity.",
 	"keywords": [],
