@@ -101,6 +101,30 @@ describe("Purse", () => {
 		assert.ok(composed.className.includes(composed.owned.className))
 	})
 
+	it("Keeps vendor-prefixed unitless number properties dimensionless", () => {
+		const test = style({
+			WebkitLineClamp: 3,
+			MozLineClamp: 2,
+			lineClamp: 1,
+		})
+
+		assert(test.owned !== undefined)
+		expect(test.owned.styleRules).toContain(
+			`.${test.className}{-webkit-line-clamp:3;-moz-line-clamp:2;line-clamp:1;}`,
+		)
+	})
+
+	it("Still adds px to vendor-prefixed dimensional properties", () => {
+		const test = style({
+			WebkitTransform: 10,
+		})
+
+		assert(test.owned !== undefined)
+		expect(test.owned.styleRules).toContain(
+			`.${test.className}{-webkit-transform:10px;}`,
+		)
+	})
+
 	it.skip("Inserts into given style element correctly", () => {})
 	it.skip("Works if you pass style rule or object to useStyles", () => {})
 	it.skip("Works if you pass multiple style rule or object to useStyles", () => {})

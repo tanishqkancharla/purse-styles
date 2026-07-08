@@ -60,6 +60,25 @@ const UNITLESS_NUMBER_PROPS = [
 	"stroke-width",
 ]
 
+const VENDOR_PREFIXES = ["-webkit-", "-moz-", "-ms-", "-o-"] as const
+
+/** True when a numeric value should compile without an implicit `px` suffix. */
+function isUnitlessNumberProperty(kebabProperty: string): boolean {
+	if (UNITLESS_NUMBER_PROPS.includes(kebabProperty)) {
+		return true
+	}
+
+	for (const prefix of VENDOR_PREFIXES) {
+		if (!kebabProperty.startsWith(prefix)) continue
+		const unprefixed = kebabProperty.slice(prefix.length)
+		if (UNITLESS_NUMBER_PROPS.includes(unprefixed)) {
+			return true
+		}
+	}
+
+	return false
+}
+
 type BaseCSSProperties = CSS.Properties<number | string, string & {}>
 type CSSVarDeclarations = Record<CSSVar, string>
 
@@ -339,7 +358,7 @@ function compileDeclarations(declarations: BaseCSSProperties) {
 			const kebabProperty = hyphenateStyleName(camelCaseProperty)
 			const needToAddPixelsUnit =
 				typeof value === "number" &&
-				!UNITLESS_NUMBER_PROPS.includes(kebabProperty)
+				!isUnitlessNumberProperty(kebabProperty)
 
 			if (needToAddPixelsUnit) {
 				return `${kebabProperty}:${value}px;`
