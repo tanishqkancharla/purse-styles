@@ -50,6 +50,44 @@ Wrap your app in `PurseProvider`:
 
 That's all! No build step.
 
+## Variables
+
+Define typed CSS custom properties with `defineVars`. Defaults are injected on `:root` when a `PurseProvider` is mounted.
+
+```tsx
+import { PurseProvider, defineVars, style, useStyles } from "purse-styles"
+
+const DARK = "@media (prefers-color-scheme: dark)"
+
+export const colors = defineVars({
+	text: { default: "black", [DARK]: "white" },
+	background: { default: "white", [DARK]: "black" },
+	accent: "blue",
+})
+
+const container = style({
+	color: colors.text,
+	backgroundColor: colors.background,
+	borderColor: colors.accent,
+})
+
+function App() {
+	const className = useStyles(container)
+	return <main className={className}>...</main>
+}
+
+;<PurseProvider>
+	<App />
+</PurseProvider>
+```
+
+Notes:
+
+- Token names are generated (`var(--purse-<hash>-<key>)`). Identical definition objects share the same names.
+- Keys cannot start with `--`; Purse always generates the custom property name.
+- Conditional values use a required `default` plus CSS at-rule keys (`@media`, `@supports`, etc.), same family as nested keys in `style()`.
+- Variables are root-level only. There is no `createTheme` / subtree theme API. App-wide non-media modes can still override the generated custom properties with root attributes or `useInjectGlobalStyles`.
+
 ## Exports
 
 ```ts
@@ -69,6 +107,11 @@ export declare function useInjectGlobalStyles(
 	cssProperties: BaseCSSProperties & CustomProperties,
 	deps: DependencyList,
 ): void
+
+// Define a typed variable group; defaults are registered on :root via PurseProvider
+export declare function defineVars<
+	const T extends Record<string, VariableDefinition>,
+>(definitions: T): VariableGroup<T>
 
 // Wrap your app in this so Purse can inject styles into the app
 export declare function PurseProvider(props: {
