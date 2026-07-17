@@ -8,6 +8,7 @@ import React, {
 	useMemo,
 } from "react"
 import { clsx } from "./clsx"
+import { attachVariableGroups } from "./cssVar"
 import { Destructor, joinDestructors } from "./destructors"
 import { hashObject } from "./hashObject"
 import { hyphenateStyleName } from "./hyphenateStyleName"
@@ -134,6 +135,7 @@ export type InMemoryStyleApi = {
 	styleRulesRef: { current: string[] }
 	addStyleElement: StyleApi["addStyleElement"]
 	addGlobalStyle: StyleApi["addGlobalStyle"]
+	detachVariableGroups: Destructor
 }
 
 export function createInMemoryStyleApi(): InMemoryStyleApi {
@@ -212,9 +214,14 @@ export function createInMemoryStyleApi(): InMemoryStyleApi {
 		return () => removeStyleElement(styleElement)
 	}
 
-	return {
+	const styleApi = {
 		addStyleElement,
 		addGlobalStyle: addStyleRule,
+	}
+
+	return {
+		...styleApi,
+		detachVariableGroups: attachVariableGroups(styleApi),
 		styleRulesRef: {
 			get current() {
 				return styleRules
@@ -347,6 +354,8 @@ export function PurseProvider(props: { children?: React.ReactNode }) {
 
 		return { addStyleElement, addGlobalStyle: addStyleRule }
 	}, [])
+
+	useInsertionEffect(() => attachVariableGroups(styleApi), [styleApi])
 
 	return (
 		<PurseContext.Provider value={styleApi}>

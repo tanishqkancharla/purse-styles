@@ -10,3 +10,12 @@ export {
 	useInjectGlobalStyles,
 	useStyles,
 } from "./purse"
+export {
+	AnyVariableGroup,
+	CSSVar,
+	VariableGroup,
+	VariableGroupMetadata,
+	VariablePrimitive,
+	defineVars,
+	getVariableGroupMetadata,
+} from "./cssVar"

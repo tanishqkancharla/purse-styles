@@ -82,6 +82,7 @@ export type InMemoryStyleApi = {
 	}
 	addStyleElement: StyleApi["addStyleElement"]
 	addGlobalStyle: StyleApi["addGlobalStyle"]
+	detachVariableGroups: () => void
 }
 export declare function createInMemoryStyleApi(): InMemoryStyleApi
 ```
