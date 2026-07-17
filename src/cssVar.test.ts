@@ -2,11 +2,20 @@ import assert from "assert"
 import { describe, expect, expectTypeOf, it } from "vitest"
 import {
 	CSSVar,
-	compileVariableGroupRule,
+	compileVariableGroupRules,
 	defineVars,
 	getVariableGroupMetadata,
 } from "./cssVar"
 import { createInMemoryStyleApi, style } from "./purse"
+
+function expectInjectedRules(
+	api: ReturnType<typeof createInMemoryStyleApi>,
+	metadata: ReturnType<typeof getVariableGroupMetadata>,
+) {
+	for (const rule of compileVariableGroupRules(metadata)) {
+		expect(api.styleRulesRef.current).toContain(rule)
+	}
+}
 
 describe("defineVars", () => {
 	it("returns typed var() references for each key", () => {
@@ -98,21 +107,18 @@ describe("variable group injection", () => {
 		})
 		const metadata = getVariableGroupMetadata(colors)
 
-		expect(compileVariableGroupRule(metadata)).toBe(
+		expect(compileVariableGroupRules(metadata)).toEqual([
 			`:root{${metadata.names.accent}:blue;${metadata.names.space}:2;${metadata.names.text}:black;}`,
-		)
+		])
 	})
 
 	it("injects already-registered groups when a style api attaches", () => {
 		const colors = defineVars({
 			phase3Existing: "navy",
 		})
-		const expectedRule = compileVariableGroupRule(
-			getVariableGroupMetadata(colors),
-		)
 
 		const api = createInMemoryStyleApi()
-		expect(api.styleRulesRef.current).toContain(expectedRule)
+		expectInjectedRules(api, getVariableGroupMetadata(colors))
 	})
 
 	it("injects groups registered after a style api attaches", () => {
@@ -120,11 +126,8 @@ describe("variable group injection", () => {
 		const colors = defineVars({
 			phase3Late: "teal",
 		})
-		const expectedRule = compileVariableGroupRule(
-			getVariableGroupMetadata(colors),
-		)
 
-		expect(api.styleRulesRef.current).toContain(expectedRule)
+		expectInjectedRules(api, getVariableGroupMetadata(colors))
 	})
 
 	it("deduplicates identical variable groups into one root rule", () => {
@@ -136,7 +139,7 @@ describe("variable group injection", () => {
 			phase3Deduped: "purple",
 		})
 
-		const expectedRule = compileVariableGroupRule(
+		const [expectedRule] = compileVariableGroupRules(
 			getVariableGroupMetadata(first),
 		)
 		expect(
@@ -148,13 +151,88 @@ describe("variable group injection", () => {
 		const colors = defineVars({
 			phase3Cleanup: "orange",
 		})
-		const expectedRule = compileVariableGroupRule(
+		const expectedRules = compileVariableGroupRules(
 			getVariableGroupMetadata(colors),
 		)
 		const api = createInMemoryStyleApi()
 
-		expect(api.styleRulesRef.current).toContain(expectedRule)
+		expectInjectedRules(api, getVariableGroupMetadata(colors))
 		api.detachVariableGroups()
-		expect(api.styleRulesRef.current).not.toContain(expectedRule)
+		for (const rule of expectedRules) {
+			expect(api.styleRulesRef.current).not.toContain(rule)
+		}
+	})
+})
+
+describe("conditional variable values", () => {
+	const DARK = "@media (prefers-color-scheme: dark)"
+
+	it("compiles defaults and at-rule overrides", () => {
+		const colors = defineVars({
+			accent: "blue",
+			text: {
+				default: "black",
+				[DARK]: "white",
+			},
+		})
+		const metadata = getVariableGroupMetadata(colors)
+
+		expect(compileVariableGroupRules(metadata)).toEqual([
+			`:root{${metadata.names.accent}:blue;${metadata.names.text}:black;}`,
+			`${DARK}{:root{${metadata.names.text}:white;}}`,
+		])
+	})
+
+	it("groups multiple tokens that share a condition", () => {
+		const colors = defineVars({
+			background: {
+				default: "white",
+				[DARK]: "black",
+			},
+			text: {
+				default: "black",
+				[DARK]: "white",
+			},
+		})
+		const metadata = getVariableGroupMetadata(colors)
+
+		expect(compileVariableGroupRules(metadata)).toEqual([
+			`:root{${metadata.names.background}:white;${metadata.names.text}:black;}`,
+			`${DARK}{:root{${metadata.names.background}:black;${metadata.names.text}:white;}}`,
+		])
+	})
+
+	it("ignores condition key order when hashing", () => {
+		const first = defineVars({
+			text: {
+				default: "black",
+				"@supports (color: color(display-p3 1 1 1))": "red",
+				[DARK]: "white",
+			},
+		})
+		const second = defineVars({
+			text: {
+				[DARK]: "white",
+				"@supports (color: color(display-p3 1 1 1))": "red",
+				default: "black",
+			},
+		})
+
+		expect(first.text).toBe(second.text)
+		expect(getVariableGroupMetadata(first).groupId).toBe(
+			getVariableGroupMetadata(second).groupId,
+		)
+	})
+
+	it("injects conditional rules through the style api", () => {
+		const api = createInMemoryStyleApi()
+		const colors = defineVars({
+			phase4Conditional: {
+				default: "black",
+				[DARK]: "white",
+			},
+		})
+
+		expectInjectedRules(api, getVariableGroupMetadata(colors))
 	})
 })

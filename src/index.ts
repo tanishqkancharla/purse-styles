@@ -13,6 +13,9 @@ export {
 export {
 	AnyVariableGroup,
 	CSSVar,
+	ConditionalVariableValue,
+	VariableCondition,
+	VariableDefinition,
 	VariableGroup,
 	VariableGroupMetadata,
 	VariablePrimitive,

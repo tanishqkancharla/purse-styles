@@ -1,23 +1,41 @@
-import { Destructor } from "./destructors"
+import type CSS from "csstype"
+import { Destructor, joinDestructors } from "./destructors"
 import { hashObject } from "./hashObject"
 
 export type CSSVar = `var(--${string})`
 
 export type VariablePrimitive = string | number
 
-type ScalarDefinitions = Record<string, VariablePrimitive>
+export type VariableCondition = `${CSS.AtRules}${string}`
+
+export type ConditionalVariableValue<
+	T extends VariablePrimitive = VariablePrimitive,
+> = {
+	default: T
+} & Partial<Record<VariableCondition, T>>
+
+export type VariableDefinition =
+	| VariablePrimitive
+	| ConditionalVariableValue
+
+type NormalizedTokenDefinition = {
+	default: VariablePrimitive
+	conditions: Record<string, VariablePrimitive>
+}
+
+type NormalizedDefinitions = Record<string, NormalizedTokenDefinition>
 
 export type VariableGroupMetadata = {
 	groupId: string
-	definitions: ScalarDefinitions
+	definitions: NormalizedDefinitions
 	names: Record<string, `--${string}`>
 }
 
-export type VariableGroup<T extends ScalarDefinitions> = {
+export type VariableGroup<T extends Record<string, unknown>> = {
 	readonly [K in keyof T]: CSSVar
 }
 
-export type AnyVariableGroup = VariableGroup<ScalarDefinitions>
+export type AnyVariableGroup = VariableGroup<Record<string, unknown>>
 
 export type VariableStyleSink = {
 	addGlobalStyle: (styleRule: string) => Destructor
@@ -25,24 +43,44 @@ export type VariableStyleSink = {
 
 const VARIABLE_GROUP_META = Symbol("purse.variableGroup")
 
-type VariableGroupWithMeta<T extends ScalarDefinitions> = VariableGroup<T> & {
-	readonly [VARIABLE_GROUP_META]: VariableGroupMetadata
-}
+type VariableGroupWithMeta<T extends Record<string, unknown>> =
+	VariableGroup<T> & {
+		readonly [VARIABLE_GROUP_META]: VariableGroupMetadata
+	}
 
 const registeredGroups = new Map<string, VariableGroupMetadata>()
 const listeners = new Set<(metadata: VariableGroupMetadata) => void>()
 
+function normalizeDefinition(
+	value: VariableDefinition,
+): NormalizedTokenDefinition {
+	if (typeof value !== "object" || value === null) {
+		return { default: value, conditions: {} }
+	}
+
+	const conditions: Record<string, VariablePrimitive> = {}
+	for (const key of Object.keys(value).sort()) {
+		if (key === "default") continue
+		conditions[key] = value[key as VariableCondition]!
+	}
+
+	return {
+		default: value.default,
+		conditions,
+	}
+}
+
 function canonicalizeDefinitions(
-	definitions: ScalarDefinitions,
-): ScalarDefinitions {
-	const canonical: ScalarDefinitions = {}
+	definitions: Record<string, VariableDefinition>,
+): NormalizedDefinitions {
+	const canonical: NormalizedDefinitions = {}
 	for (const key of Object.keys(definitions).sort()) {
-		canonical[key] = definitions[key]
+		canonical[key] = normalizeDefinition(definitions[key]!)
 	}
 	return canonical
 }
 
-function assertValidTokenKeys(definitions: ScalarDefinitions) {
+function assertValidTokenKeys(definitions: Record<string, VariableDefinition>) {
 	for (const key of Object.keys(definitions)) {
 		if (key.startsWith("--")) {
 			throw new Error(
@@ -63,14 +101,33 @@ function registerVariableGroup(metadata: VariableGroupMetadata) {
 	}
 }
 
-export function compileVariableGroupRule(
+export function compileVariableGroupRules(
 	metadata: VariableGroupMetadata,
-): string {
-	let declarations = ""
+): string[] {
+	let rootDeclarations = ""
+	const declarationsByCondition = new Map<string, string>()
+
 	for (const key of Object.keys(metadata.definitions)) {
-		declarations += `${metadata.names[key]}:${metadata.definitions[key]};`
+		const definition = metadata.definitions[key]!
+		const customProperty = metadata.names[key]!
+		rootDeclarations += `${customProperty}:${definition.default};`
+
+		for (const condition of Object.keys(definition.conditions).sort()) {
+			const existing = declarationsByCondition.get(condition) ?? ""
+			declarationsByCondition.set(
+				condition,
+				`${existing}${customProperty}:${definition.conditions[condition]};`,
+			)
+		}
 	}
-	return `:root{${declarations}}`
+
+	const rules = [`:root{${rootDeclarations}}`]
+	for (const condition of [...declarationsByCondition.keys()].sort()) {
+		rules.push(
+			`${condition}{:root{${declarationsByCondition.get(condition)}}}`,
+		)
+	}
+	return rules
 }
 
 export function subscribeVariableGroups(
@@ -97,8 +154,10 @@ export function attachVariableGroups(
 			return
 		}
 
-		const destructor = styleApi.addGlobalStyle(
-			compileVariableGroupRule(metadata),
+		const destructor = joinDestructors(
+			compileVariableGroupRules(metadata).map((rule) =>
+				styleApi.addGlobalStyle(rule),
+			),
 		)
 		insertedGroups.set(metadata.groupId, destructor)
 	}
@@ -115,7 +174,7 @@ export function attachVariableGroups(
 }
 
 export function defineVars<
-	const T extends Record<string, VariablePrimitive>,
+	const T extends Record<string, VariableDefinition>,
 >(definitions: T): VariableGroup<T> {
 	assertValidTokenKeys(definitions)
 
@@ -150,7 +209,7 @@ export function defineVars<
 export function getVariableGroupMetadata(
 	group: AnyVariableGroup,
 ): VariableGroupMetadata {
-	const metadata = (group as VariableGroupWithMeta<ScalarDefinitions>)[
+	const metadata = (group as VariableGroupWithMeta<Record<string, unknown>>)[
 		VARIABLE_GROUP_META
 	]
 	if (!metadata) {
