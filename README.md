@@ -66,7 +66,7 @@ export declare function useStyles(
 // Inject global styles into the app, you may want to do this as an escape hatch
 export declare function useInjectGlobalStyles(
 	selector: string,
-	cssProperties: BaseCSSProperties & CSSVarDeclarations,
+	cssProperties: BaseCSSProperties & CustomProperties,
 	deps: DependencyList,
 ): void
 

@@ -125,6 +125,28 @@ describe("Purse", () => {
 		)
 	})
 
+	it("Compiles custom property declarations without adding px", () => {
+		const test = style({
+			"--space": 2,
+		})
+
+		assert(test.owned !== undefined)
+		expect(test.owned.styleRules).toContain(
+			`.${test.className}{--space:2;}`,
+		)
+	})
+
+	it("Compiles custom property references as ordinary values", () => {
+		const test = style({
+			color: "var(--color)",
+		})
+
+		assert(test.owned !== undefined)
+		expect(test.owned.styleRules).toContain(
+			`.${test.className}{color:var(--color);}`,
+		)
+	})
+
 	it.skip("Inserts into given style element correctly", () => {})
 	it.skip("Works if you pass style rule or object to useStyles", () => {})
 	it.skip("Works if you pass multiple style rule or object to useStyles", () => {})

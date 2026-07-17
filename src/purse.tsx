@@ -8,7 +8,6 @@ import React, {
 	useMemo,
 } from "react"
 import { clsx } from "./clsx"
-import { CSSVar } from "./cssVar"
 import { Destructor, joinDestructors } from "./destructors"
 import { hashObject } from "./hashObject"
 import { hyphenateStyleName } from "./hyphenateStyleName"
@@ -80,7 +79,12 @@ function isUnitlessNumberProperty(kebabProperty: string): boolean {
 }
 
 type BaseCSSProperties = CSS.Properties<number | string, string & {}>
-type CSSVarDeclarations = Record<CSSVar, string>
+
+type CustomProperties = {
+	[name: `--${string}`]: string | number | undefined
+}
+
+type Declarations = BaseCSSProperties & CustomProperties
 
 type NestedRuleKey =
 	| `&${CSS.SimplePseudos}`
@@ -90,8 +94,8 @@ type NestedRuleKey =
 
 export type CSSProperties = {
 	[Key in keyof BaseCSSProperties]?: BaseCSSProperties[Key]
-} & {
-	[Key in NestedRuleKey]?: BaseCSSProperties
+} & CustomProperties & {
+	[Key in NestedRuleKey]?: Declarations
 }
 
 const PurseContext = createContext<StyleApi | undefined>(undefined)
@@ -351,19 +355,30 @@ export function PurseProvider(props: { children?: React.ReactNode }) {
 	)
 }
 
-function compileDeclarations(declarations: BaseCSSProperties) {
+function isCustomProperty(name: string): name is `--${string}` {
+	return name.startsWith("--")
+}
+
+function compileDeclarations(declarations: Declarations) {
 	// return entries(prefix(declarations))
 	return entries(declarations)
-		.map(([camelCaseProperty, value]) => {
-			const kebabProperty = hyphenateStyleName(camelCaseProperty)
+		.map(([name, value]) => {
+			if (value === undefined || value === null) {
+				return ""
+			}
+
+			const property = isCustomProperty(name)
+				? name
+				: hyphenateStyleName(name)
 			const needToAddPixelsUnit =
 				typeof value === "number" &&
-				!isUnitlessNumberProperty(kebabProperty)
+				!isCustomProperty(name) &&
+				!isUnitlessNumberProperty(property)
 
 			if (needToAddPixelsUnit) {
-				return `${kebabProperty}:${value}px;`
+				return `${property}:${value}px;`
 			} else {
-				return `${kebabProperty}:${value};`
+				return `${property}:${value};`
 			}
 		})
 		.join("")
@@ -394,9 +409,9 @@ function isObjectEmpty(obj: {}): boolean {
 }
 
 type CSSPropertiesGroup = {
-	"": BaseCSSProperties
+	"": Declarations
 } & {
-	[Key in NestedRuleKey]?: BaseCSSProperties
+	[Key in NestedRuleKey]?: Declarations
 }
 
 function mergeCSSProperties(...groups: CSSProperties[]): CSSProperties {
@@ -535,7 +550,7 @@ function styleElementToRules({ owned, composed }: StyleElement): StyleRule[] {
 
 export function useInjectGlobalStyles(
 	selector: string,
-	cssProperties: BaseCSSProperties & CSSVarDeclarations,
+	cssProperties: Declarations,
 	deps: DependencyList,
 ) {
 	const styleApi = useRequiredContext(PurseContext)
