@@ -19,12 +19,12 @@ test("renders an element through PurseProvider and useStyles", async ({
 	expect(button.getAttribute("type")).toBe("button")
 	expect(button.classList).toContain("existing")
 
-	const purseClassName = [...button.classList].find(
+	const purseClassName = Array.from(button.classList).find(
 		(className) => className !== "existing",
 	)
 	expect(purseClassName).toBeDefined()
 
-	const injectedCss = [...document.head.querySelectorAll("style")]
+	const injectedCss = Array.from(document.head.querySelectorAll("style"))
 		.map((styleElement) => styleElement.textContent)
 		.join("")
 	expect(document.head.querySelectorAll("style")).toHaveLength(2)

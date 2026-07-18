@@ -4,6 +4,9 @@ import { defineConfig } from "vitest/config"
 
 export default defineConfig({
 	plugins: [react()],
+	optimizeDeps: {
+		include: ["lodash-es", "react", "vitest-browser-react/pure"],
+	},
 	test: {
 		allowOnly: !process.env.CI,
 		projects: [
