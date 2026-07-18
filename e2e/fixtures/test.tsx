@@ -6,11 +6,7 @@ import {
 } from "react"
 import { page, type Locator } from "vitest/browser"
 import { expect, test as baseTest } from "vitest"
-import {
-	cleanup,
-	render,
-	type RenderResult,
-} from "vitest-browser-react/pure"
+import { render, type RenderResult } from "vitest-browser-react/pure"
 
 import {
 	PurseProvider,
@@ -34,13 +30,8 @@ type RenderStyled = (
 ) => Promise<StyledRenderResult>
 
 type PurseFixtures = {
-	styleCleanup: true
 	renderPurse: RenderPurse
 	renderStyled: RenderStyled
-}
-
-function PurseWrapper({ children }: { children: ReactNode }): JSX.Element {
-	return <PurseProvider>{children}</PurseProvider>
 }
 
 function StyledSubject({
@@ -59,20 +50,19 @@ function StyledSubject({
 }
 
 export const test = baseTest.extend<PurseFixtures>({
-	styleCleanup: [
-		async ({}, use) => {
-			await cleanup()
+	renderPurse: async ({}, use) => {
+		const renderedComponents: RenderResult[] = []
 
-			await use(true)
+		await use(async (ui) => {
+			const result = await render(ui, { wrapper: PurseProvider })
+			renderedComponents.push(result)
+			return result
+		})
 
-			await cleanup()
-		},
-		{ auto: true },
-	],
-	renderPurse: async ({ styleCleanup }, use) => {
-		void styleCleanup
-
-		await use((ui) => render(ui, { wrapper: PurseWrapper }))
+		for (const result of renderedComponents.reverse()) {
+			await result.unmount()
+			result.container.remove()
+		}
 	},
 	renderStyled: async ({ renderPurse }, use) => {
 		await use(async (element, ...styles) => {
