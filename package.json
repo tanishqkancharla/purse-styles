@@ -18,7 +18,7 @@
 	},
 	"scripts": {
 		"build": "tsx scripts/build.ts",
-		"check": "tsc --noEmit",
+		"check": "tsc --noEmit && tsc -p e2e/tsconfig.json",
 		"test": "vitest",
 		"test:run": "vitest run",
 		"test:e2e": "vitest run --project browser",
