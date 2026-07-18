@@ -7,14 +7,17 @@ test("applies styles to the rendered element", async ({
 		<button className="existing" disabled type="button">
 			Save
 		</button>,
-		{ color: "red" },
+		{ color: "red", paddingTop: 8 },
 	)
 
 	await expect.element(subject).toHaveTextContent("Save")
 	await expect.element(subject).toBeDisabled()
+	await expect.element(subject).toHaveComputedStyle({
+		color: "rgb(255, 0, 0)",
+		paddingTop: "8px",
+	})
 
 	const button = subject.element() as HTMLButtonElement
 	expect(button.getAttribute("type")).toBe("button")
 	expect(button.classList).toContain("existing")
-	expect(getComputedStyle(button).color).toBe("rgb(255, 0, 0)")
 })

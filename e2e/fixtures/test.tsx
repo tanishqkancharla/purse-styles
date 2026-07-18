@@ -12,6 +12,7 @@ import {
 	type StyleArgument,
 	useStyles,
 } from "../../src/index"
+import "./toHaveComputedStyle"
 
 type StyledElementProps = {
 	className?: string
