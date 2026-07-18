@@ -50,7 +50,7 @@ function toHaveComputedStyle(
 
 		const matches =
 			expectedValue instanceof RegExp
-				? expectedValue.test(value)
+				? new RegExp(expectedValue).test(value)
 				: value === expectedValue
 
 		if (!matches) {
