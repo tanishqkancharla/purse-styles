@@ -1,7 +1,6 @@
 import {
 	cloneElement,
 	type ReactElement,
-	type ReactNode,
 	type JSX,
 } from "react"
 import { page, type Locator } from "vitest/browser"
@@ -18,20 +17,17 @@ type StyledElementProps = {
 	className?: string
 }
 
-type RenderPurse = (ui: ReactNode) => Promise<RenderResult>
-
-export type StyledRenderResult = RenderResult & {
+export type StyledComponentRenderResult = RenderResult & {
 	subject: Locator
 }
 
-type RenderStyled = (
+type RenderStyledComponent = (
 	element: ReactElement<StyledElementProps>,
 	...styles: StyleArgument[]
-) => Promise<StyledRenderResult>
+) => Promise<StyledComponentRenderResult>
 
 type PurseFixtures = {
-	renderPurse: RenderPurse
-	renderStyled: RenderStyled
+	renderStyledComponent: RenderStyledComponent
 }
 
 function StyledSubject({
@@ -50,29 +46,21 @@ function StyledSubject({
 }
 
 export const test = baseTest.extend<PurseFixtures>({
-	renderPurse: async ({}, use) => {
+	renderStyledComponent: async ({}, use) => {
 		const renderedComponents: RenderResult[] = []
 
-		await use(async (ui) => {
-			const result = await render(ui, { wrapper: PurseProvider })
-			renderedComponents.push(result)
-			return result
-		})
-
-		for (const result of renderedComponents.reverse()) {
-			await result.unmount()
-			result.container.remove()
-		}
-	},
-	renderStyled: async ({ renderPurse }, use) => {
 		await use(async (element, ...styles) => {
-			const screen = await renderPurse(
+			const screen = await render(
 				<StyledSubject element={element} styles={styles} />,
+				{ wrapper: PurseProvider },
 			)
+			renderedComponents.push(screen)
 			const subject = screen.container.firstElementChild
 
 			if (subject === null) {
-				throw new Error("renderStyled expected the element to render")
+				throw new Error(
+					"renderStyledComponent expected the element to render",
+				)
 			}
 
 			return {
@@ -80,6 +68,11 @@ export const test = baseTest.extend<PurseFixtures>({
 				subject: page.elementLocator(subject),
 			}
 		})
+
+		for (const result of renderedComponents.reverse()) {
+			await result.unmount()
+			result.container.remove()
+		}
 	},
 })
 

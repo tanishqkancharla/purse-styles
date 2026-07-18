@@ -1,9 +1,9 @@
 import { expect, test } from "./fixtures/test"
 
 test("applies styles to the rendered element", async ({
-	renderStyled,
+	renderStyledComponent,
 }) => {
-	const { subject } = await renderStyled(
+	const { subject } = await renderStyledComponent(
 		<button className="existing" disabled type="button">
 			Save
 		</button>,
