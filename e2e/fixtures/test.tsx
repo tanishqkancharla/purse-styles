@@ -21,7 +21,7 @@ import {
 	type BrowserMediaOptions,
 	type EmulateMediaOptions,
 	RESET_MEDIA_OPTIONS,
-} from "./mediaOptions"
+} from "./emulateMediaCommand"
 import "./toHaveComputedStyle"
 
 declare module "vitest/browser" {

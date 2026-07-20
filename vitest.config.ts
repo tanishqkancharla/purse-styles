@@ -2,8 +2,10 @@ import react from "@vitejs/plugin-react"
 import { playwright } from "@vitest/browser-playwright"
 import { defineConfig } from "vitest/config"
 
-import { emulateMediaCommand } from "./e2e/fixtures/emulateMediaCommand"
-import { DEFAULT_VIEWPORT } from "./e2e/fixtures/mediaOptions"
+import {
+	DEFAULT_VIEWPORT,
+	emulateMediaCommand,
+} from "./e2e/fixtures/emulateMediaCommand"
 
 export default defineConfig({
 	plugins: [react()],
