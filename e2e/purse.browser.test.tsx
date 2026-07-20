@@ -2,6 +2,10 @@ import { defineVars, style } from "../src/index"
 import { expect, test } from "./fixtures/test"
 
 const colors = defineVars({
+	adaptiveText: {
+		default: "black",
+		"@media (prefers-color-scheme: dark)": "white",
+	},
 	text: "rgb(12, 34, 56)",
 })
 
@@ -138,5 +142,61 @@ test("supports multiple styled components in one test", async ({
 	})
 	await expect.element(second.subject).toHaveComputedStyle({
 		color: "rgb(0, 128, 0)",
+	})
+})
+
+test("emulates color scheme, reduced motion, and viewport", async ({
+	emulateMedia,
+	renderStyledComponent,
+}) => {
+	await emulateMedia({
+		colorScheme: "dark",
+		reducedMotion: "reduce",
+		viewport: {
+			width: 400,
+			height: 600,
+		},
+	})
+
+	const { subject } = await renderStyledComponent(
+		<main>Media preferences</main>,
+		{
+			color: colors.adaptiveText,
+			fontSize: 12,
+			transitionDuration: "1s",
+			"@media (prefers-reduced-motion: reduce)": {
+				transitionDuration: "0s",
+			},
+			"@media (max-width: 500px)": {
+				fontSize: 20,
+			},
+		},
+	)
+
+	await expect.element(subject).toHaveComputedStyle({
+		color: "rgb(255, 255, 255)",
+		fontSize: "20px",
+		transitionDuration: "0s",
+	})
+})
+
+test("emulates print media", async ({
+	emulateMedia,
+	renderStyledComponent,
+}) => {
+	await emulateMedia({ media: "print" })
+
+	const { subject } = await renderStyledComponent(
+		<article>Printable</article>,
+		{
+			color: "red",
+			"@media print": {
+				color: "blue",
+			},
+		},
+	)
+
+	await expect.element(subject).toHaveComputedStyle({
+		color: "rgb(0, 0, 255)",
 	})
 })

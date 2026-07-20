@@ -3,7 +3,11 @@ import {
 	type ReactElement,
 	type JSX,
 } from "react"
-import { page, type Locator } from "vitest/browser"
+import {
+	commands,
+	page,
+	type Locator,
+} from "vitest/browser"
 import { expect, test as baseTest } from "vitest"
 import { render, type RenderResult } from "vitest-browser-react/pure"
 
@@ -12,7 +16,21 @@ import {
 	type StyleArgument,
 	useStyles,
 } from "../../src/index"
+import {
+	DEFAULT_VIEWPORT,
+	type BrowserMediaOptions,
+	type EmulateMediaOptions,
+	RESET_MEDIA_OPTIONS,
+} from "./mediaOptions"
 import "./toHaveComputedStyle"
+
+declare module "vitest/browser" {
+	interface BrowserCommands {
+		emulateMedia(
+			options: BrowserMediaOptions,
+		): Promise<void>
+	}
+}
 
 type StyledElementProps = {
 	className?: string
@@ -27,7 +45,10 @@ type RenderStyledComponent = (
 	...styles: StyleArgument[]
 ) => Promise<StyledComponentRenderResult>
 
+type EmulateMedia = (options: EmulateMediaOptions) => Promise<void>
+
 type PurseFixtures = {
+	emulateMedia: EmulateMedia
 	renderStyledComponent: RenderStyledComponent
 }
 
@@ -47,6 +68,29 @@ function StyledSubject({
 }
 
 export const test = baseTest.extend<PurseFixtures>({
+	emulateMedia: async ({}, use) => {
+		let changed = false
+
+		try {
+			await use(async ({ viewport, ...mediaOptions }) => {
+				changed = true
+
+				if (viewport !== undefined) {
+					await page.viewport(viewport.width, viewport.height)
+				}
+
+				await commands.emulateMedia(mediaOptions)
+			})
+		} finally {
+			if (changed) {
+				await commands.emulateMedia(RESET_MEDIA_OPTIONS)
+				await page.viewport(
+					DEFAULT_VIEWPORT.width,
+					DEFAULT_VIEWPORT.height,
+				)
+			}
+		}
+	},
 	renderStyledComponent: async ({}, use) => {
 		const renderedComponents: RenderResult[] = []
 
