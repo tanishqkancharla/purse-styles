@@ -1,16 +1,22 @@
 export {
-	CSSProperties,
-	InMemoryStyleApi,
 	PurseProvider,
-	StyleApi,
-	StyleArgument,
-	StyleElement,
 	createInMemoryStyleApi,
 	style,
 	useInjectGlobalStyles,
 	useStyles,
 } from "./purse"
+export type {
+	CSSProperties,
+	InMemoryStyleApi,
+	StyleApi,
+	StyleArgument,
+	StyleElement,
+} from "./purse"
 export {
+	defineVars,
+	getVariableGroupMetadata,
+} from "./cssVar"
+export type {
 	AnyVariableGroup,
 	CSSVar,
 	ConditionalVariableValue,
@@ -19,6 +25,4 @@ export {
 	VariableGroup,
 	VariableGroupMetadata,
 	VariablePrimitive,
-	defineVars,
-	getVariableGroupMetadata,
 } from "./cssVar"

@@ -132,5 +132,5 @@ export declare function createInMemoryStyleApi(): InMemoryStyleApi
 
 ## TODO
 
-- [ ] E2E tests with Playwright
+- [x] E2E tests with Playwright
 - [ ] Consider exporting a simple `styled` alternative
