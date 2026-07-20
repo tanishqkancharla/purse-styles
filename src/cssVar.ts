@@ -1,4 +1,3 @@
-import type CSS from "csstype"
 import { Destructor, joinDestructors } from "./destructors"
 import { hashObject } from "./hashObject"
 
@@ -6,7 +5,7 @@ export type CSSVar = `var(--${string})`
 
 export type VariablePrimitive = string | number
 
-export type VariableCondition = `${CSS.AtRules}${string}`
+export type VariableCondition = string
 
 export type ConditionalVariableValue<
 	T extends VariablePrimitive = VariablePrimitive,
@@ -123,8 +122,11 @@ export function compileVariableGroupRules(
 
 	const rules = [`:root{${rootDeclarations}}`]
 	for (const condition of [...declarationsByCondition.keys()].sort()) {
+		const declarations = declarationsByCondition.get(condition)
 		rules.push(
-			`${condition}{:root{${declarationsByCondition.get(condition)}}}`,
+			condition.startsWith("@")
+				? `${condition}{:root{${declarations}}}`
+				: `${condition}{${declarations}}`,
 		)
 	}
 	return rules
