@@ -189,14 +189,24 @@ test("emulates print media", async ({
 	const { subject } = await renderStyledComponent(
 		<article>Printable</article>,
 		{
+			backgroundColor: "white",
 			color: "red",
+			fontSize: 12,
 			"@media print": {
 				color: "blue",
+			},
+			"@media (max-width: 500px)": {
+				fontSize: 20,
+			},
+			"@media (prefers-color-scheme: dark)": {
+				backgroundColor: "black",
 			},
 		},
 	)
 
 	await expect.element(subject).toHaveComputedStyle({
+		backgroundColor: "rgb(255, 255, 255)",
 		color: "rgb(0, 0, 255)",
+		fontSize: "12px",
 	})
 })
