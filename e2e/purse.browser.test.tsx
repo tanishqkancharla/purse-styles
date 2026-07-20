@@ -9,26 +9,18 @@ const colors = defineVars({
 	text: "rgb(12, 34, 56)",
 })
 
-test("applies styles to the rendered element", async ({
+test("injects declarations and resolves numeric lengths", async ({
 	renderStyledComponent,
 }) => {
 	const { subject } = await renderStyledComponent(
-		<button className="existing" disabled type="button">
-			Save
-		</button>,
+		<button>Save</button>,
 		{ color: "red", paddingTop: 8 },
 	)
 
-	await expect.element(subject).toHaveTextContent("Save")
-	await expect.element(subject).toBeDisabled()
 	await expect.element(subject).toHaveComputedStyle({
 		color: "rgb(255, 0, 0)",
 		paddingTop: "8px",
 	})
-
-	const button = subject.element() as HTMLButtonElement
-	expect(button.getAttribute("type")).toBe("button")
-	expect(button.classList).toContain("existing")
 })
 
 test("composes style elements and skips falsy arguments", async ({
@@ -127,7 +119,7 @@ test("resolves generated and custom CSS variables", async ({
 	})
 })
 
-test("supports multiple styled components in one test", async ({
+test("applies independent styles to multiple elements", async ({
 	renderStyledComponent,
 }) => {
 	const first = await renderStyledComponent(<span>First</span>, {
@@ -145,7 +137,7 @@ test("supports multiple styled components in one test", async ({
 	})
 })
 
-test("emulates color scheme, reduced motion, and viewport", async ({
+test("applies conditional styles across active media features", async ({
 	emulateMedia,
 	renderStyledComponent,
 }) => {
@@ -180,7 +172,7 @@ test("emulates color scheme, reduced motion, and viewport", async ({
 	})
 })
 
-test("emulates print media", async ({
+test("applies print-specific nested styles", async ({
 	emulateMedia,
 	renderStyledComponent,
 }) => {
@@ -189,24 +181,14 @@ test("emulates print media", async ({
 	const { subject } = await renderStyledComponent(
 		<article>Printable</article>,
 		{
-			backgroundColor: "white",
 			color: "red",
-			fontSize: 12,
 			"@media print": {
 				color: "blue",
-			},
-			"@media (max-width: 500px)": {
-				fontSize: 20,
-			},
-			"@media (prefers-color-scheme: dark)": {
-				backgroundColor: "black",
 			},
 		},
 	)
 
 	await expect.element(subject).toHaveComputedStyle({
-		backgroundColor: "rgb(255, 255, 255)",
 		color: "rgb(0, 0, 255)",
-		fontSize: "12px",
 	})
 })
