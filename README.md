@@ -57,11 +57,16 @@ Define typed CSS custom properties with `defineVars`. Defaults are injected on `
 ```tsx
 import { PurseProvider, defineVars, style, useStyles } from "purse-styles"
 
-const DARK = "@media (prefers-color-scheme: dark)"
+const DARK_THEME = ':root[data-theme="dark"]'
+const DARK_MEDIA = "@media (prefers-color-scheme: dark)"
 
 export const colors = defineVars({
-	text: { default: "black", [DARK]: "white" },
-	background: { default: "white", [DARK]: "black" },
+	text: {
+		default: "black",
+		[DARK_THEME]: "white",
+		[DARK_MEDIA]: "white",
+	},
+	background: { default: "white", [DARK_THEME]: "black" },
 	accent: "blue",
 })
 
@@ -85,8 +90,9 @@ Notes:
 
 - Token names are generated (`var(--purse-<hash>-<key>)`). Identical definition objects share the same names.
 - Keys cannot start with `--`; Purse always generates the custom property name.
-- Conditional values use a required `default` plus CSS at-rule keys (`@media`, `@supports`, etc.), same family as nested keys in `style()`.
-- Variables are root-level only. There is no `createTheme` / subtree theme API. App-wide non-media modes can still override the generated custom properties with root attributes or `useInjectGlobalStyles`.
+- Conditional values use a required `default` plus CSS at-rule or selector keys. At-rules wrap a `:root` rule (for example, `@media ...{:root{...}}`), while selector conditions receive the declarations directly (for example, `:root[data-theme="dark"]{...}`).
+- Set `data-theme="dark"` on the root `<html>` element to activate the selector condition above.
+- Defaults are root-level, and there is no dedicated `createTheme` / subtree theme API.
 
 ## Exports
 

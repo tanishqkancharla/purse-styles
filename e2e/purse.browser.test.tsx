@@ -1,12 +1,20 @@
 import { defineVars, style } from "../src/index"
 import { expect, test } from "./fixtures/test"
 
+const DARK_MEDIA = "@media (prefers-color-scheme: dark)"
+const DARK_THEME = ':root[data-theme="dark"]'
+const GROUPED_THEME = ':root[data-purse-grouped-theme="dark"]'
+const COLOR_1 = "rgb(12, 34, 56)"
+const COLOR_2 = "rgb(240, 241, 242)"
+const COLOR_3 = "rgb(100, 101, 102)"
+const COLOR_4 = "rgb(1, 2, 3)"
+
 const colors = defineVars({
 	adaptiveText: {
 		default: "black",
-		"@media (prefers-color-scheme: dark)": "white",
+		[DARK_MEDIA]: "white",
 	},
-	text: "rgb(12, 34, 56)",
+	text: COLOR_1,
 })
 
 test("injects declarations and resolves numeric lengths", async ({
@@ -113,10 +121,123 @@ test("resolves generated and custom CSS variables", async ({
 	)
 
 	await expect.element(subject).toHaveComputedStyle({
-		color: "rgb(12, 34, 56)",
+		color: COLOR_1,
 		"--local-accent": "rebeccapurple",
 		outlineColor: /^rgb\(102,\s*51,\s*153\)$/,
 	})
+})
+
+test("applies selector-conditioned variables from root attributes", async ({
+	renderStyledComponent,
+}) => {
+	const selectorColors = defineVars({
+		selectorText: {
+			default: COLOR_1,
+			[DARK_THEME]: COLOR_2,
+		},
+	})
+	const { subject } = await renderStyledComponent(
+		<p>Selector variables</p>,
+		{ color: selectorColors.selectorText },
+	)
+
+	try {
+		await expect.element(subject).toHaveComputedStyle({
+			color: COLOR_1,
+		})
+
+		document.documentElement.dataset.theme = "dark"
+
+		await expect.element(subject).toHaveComputedStyle({
+			color: COLOR_2,
+		})
+	} finally {
+		delete document.documentElement.dataset.theme
+	}
+})
+
+test("applies mixed at-rule and selector variable conditions", async ({
+	emulateMedia,
+	renderStyledComponent,
+}) => {
+	await emulateMedia({ colorScheme: "dark" })
+	const mixedConditionColors = defineVars({
+		mixedText: {
+			default: COLOR_1,
+			[DARK_THEME]: COLOR_3,
+			[DARK_MEDIA]: COLOR_2,
+		},
+	})
+	const { subject } = await renderStyledComponent(
+		<p>Mixed variable conditions</p>,
+		{ color: mixedConditionColors.mixedText },
+	)
+
+	try {
+		await expect.element(subject).toHaveComputedStyle({
+			color: COLOR_2,
+		})
+
+		document.documentElement.dataset.theme = "dark"
+
+		await expect.element(subject).toHaveComputedStyle({
+			color: COLOR_3,
+		})
+	} finally {
+		delete document.documentElement.dataset.theme
+	}
+})
+
+test("applies a selector condition to multiple tokens", async ({
+	renderStyledComponent,
+}) => {
+	const groupedSelectorColors = defineVars({
+		background: {
+			default: COLOR_1,
+			[GROUPED_THEME]: COLOR_4,
+		},
+		text: {
+			default: COLOR_1,
+			[GROUPED_THEME]: COLOR_2,
+		},
+	})
+	const { subject } = await renderStyledComponent(
+		<p>Grouped selector variables</p>,
+		{
+			backgroundColor: groupedSelectorColors.background,
+			color: groupedSelectorColors.text,
+		},
+	)
+
+	try {
+		document.documentElement.dataset.purseGroupedTheme = "dark"
+
+		await expect.element(subject).toHaveComputedStyle({
+			backgroundColor: COLOR_4,
+			color: COLOR_2,
+		})
+	} finally {
+		delete document.documentElement.dataset.purseGroupedTheme
+	}
+})
+
+test("hashes variable conditions independently of insertion order", () => {
+	const first = defineVars({
+		deterministicText: {
+			default: COLOR_1,
+			[DARK_THEME]: COLOR_2,
+			[DARK_MEDIA]: COLOR_3,
+		},
+	})
+	const second = defineVars({
+		deterministicText: {
+			[DARK_MEDIA]: COLOR_3,
+			[DARK_THEME]: COLOR_2,
+			default: COLOR_1,
+		},
+	})
+
+	expect(first.deterministicText).toBe(second.deterministicText)
 })
 
 test("applies independent styles to multiple elements", async ({
