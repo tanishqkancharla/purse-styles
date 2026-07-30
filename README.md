@@ -107,10 +107,11 @@ export declare function useStyles(
 	...styleElementsOrCSS: (CSSProperties | StyleElement)[]
 ): string
 
-// Inject global styles into the app, you may want to do this as an escape hatch
+// Inject global styles into the app, you may want to do this as an escape hatch.
+// Accepts the same style object shape as style() (including nested / at-rules).
 export declare function useInjectGlobalStyles(
 	selector: string,
-	cssProperties: BaseCSSProperties & CustomProperties,
+	cssProperties: CSSProperties,
 	deps: DependencyList,
 ): void
 

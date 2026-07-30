@@ -1,4 +1,11 @@
-import { defineVars, style } from "../src/index"
+import { page } from "vitest/browser"
+import { render } from "vitest-browser-react/pure"
+import {
+	PurseProvider,
+	defineVars,
+	style,
+	useInjectGlobalStyles,
+} from "../src/index"
 import { expect, test } from "./fixtures/test"
 
 const DARK_MEDIA = "@media (prefers-color-scheme: dark)"
@@ -312,4 +319,45 @@ test("applies print-specific nested styles", async ({
 	await expect.element(subject).toHaveComputedStyle({
 		color: "rgb(0, 0, 255)",
 	})
+})
+
+function GlobalLinkStyles() {
+	useInjectGlobalStyles(
+		"[data-purse-global-root]",
+		{
+			color: "red",
+			"& a": {
+				color: "blue",
+			},
+		},
+		[],
+	)
+
+	return (
+		<div data-purse-global-root>
+			<span data-testid="global-text">Text</span>
+			<a data-testid="global-link" href="#global">
+				Link
+			</a>
+		</div>
+	)
+}
+
+test("injects global style objects with nested selectors", async () => {
+	const screen = await render(<GlobalLinkStyles />, {
+		wrapper: PurseProvider,
+	})
+
+	const text = page.getByTestId("global-text")
+	const link = page.getByTestId("global-link")
+
+	await expect.element(text).toHaveComputedStyle({
+		color: "rgb(255, 0, 0)",
+	})
+	await expect.element(link).toHaveComputedStyle({
+		color: "rgb(0, 0, 255)",
+	})
+
+	await screen.unmount()
+	screen.container.remove()
 })
