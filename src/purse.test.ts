@@ -1,7 +1,13 @@
 import assert from "assert"
 import { expect } from "extendable-expect"
-import { describe, it } from "vitest"
-import { InMemoryStyleApi, createInMemoryStyleApi, style } from "./purse"
+import { describe, expectTypeOf, it } from "vitest"
+import {
+	CSSProperties,
+	InMemoryStyleApi,
+	compileGlobalStyleRules,
+	createInMemoryStyleApi,
+	style,
+} from "./purse"
 
 describe("Purse", () => {
 	const expectStyles = expect.extend({
@@ -145,6 +151,35 @@ describe("Purse", () => {
 		expect(test.owned.styleRules).toContain(
 			`.${test.className}{color:var(--color);}`,
 		)
+	})
+
+	it("Compiles global style objects against a selector", () => {
+		expect(
+			compileGlobalStyleRules("body", {
+				margin: 0,
+				"& a": {
+					color: "blue",
+				},
+				"@media (prefers-color-scheme: dark)": {
+					backgroundColor: "black",
+				},
+			}),
+		).toEqual([
+			"body{margin:0px;}",
+			"body a{color:blue;}",
+			"@media (prefers-color-scheme: dark){body{background-color:black;}}",
+		])
+	})
+
+	it("Accepts nested style objects for useInjectGlobalStyles", () => {
+		const cssProperties = {
+			margin: 0,
+			"&:focus-visible": {
+				outline: "2px solid blue",
+			},
+		} satisfies CSSProperties
+
+		expectTypeOf(cssProperties).toExtend<CSSProperties>()
 	})
 
 	it.skip("Inserts into given style element correctly", () => {})

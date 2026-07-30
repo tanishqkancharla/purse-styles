@@ -487,36 +487,75 @@ function groupCSSProperties(properties: CSSProperties): CSSPropertiesGroup {
 	return styleDeclarationsBySelector as CSSPropertiesGroup
 }
 
-function compileCSS(properties: CSSProperties): StyleElement["owned"] {
+function rulesFromCompiledGroups(
+	compiledStyleDeclarationsByGroup: Record<string, string>,
+	targetSelector: string,
+): StyleRule[] {
+	return entries(compiledStyleDeclarationsByGroup).map(([group, styles]) => {
+		if (group === "") {
+			// Base group
+			return `${targetSelector}{${styles}}`
+		} else if (group.startsWith("@")) {
+			// At rules
+			return `${group}{${targetSelector}{${styles}}}`
+		} else {
+			// Nested Rules
+			const selector = group.replace(/&/g, targetSelector)
+			return `${selector}{${styles}}`
+		}
+	})
+}
+
+function compileStyleDeclarationGroups(
+	properties: CSSProperties,
+): Record<string, string> | undefined {
 	if (isObjectEmpty(properties)) {
 		return undefined
 	}
 
-	const groupedCSSProperties = groupCSSProperties(properties)
-
-	const compiledStyleDeclarationsByGroup = mapValues(
-		groupedCSSProperties,
-		compileDeclarations,
+	return mapValues(groupCSSProperties(properties), (declarations) =>
+		compileDeclarations(declarations ?? {}),
 	)
+}
+
+function compileCSSPropertiesToRules(
+	properties: CSSProperties,
+	targetSelector: string,
+): StyleRule[] {
+	const compiledStyleDeclarationsByGroup =
+		compileStyleDeclarationGroups(properties)
+	if (!compiledStyleDeclarationsByGroup) {
+		return []
+	}
+
+	return rulesFromCompiledGroups(
+		compiledStyleDeclarationsByGroup,
+		targetSelector,
+	)
+}
+
+function compileCSS(properties: CSSProperties): StyleElement["owned"] {
+	const compiledStyleDeclarationsByGroup =
+		compileStyleDeclarationGroups(properties)
+	if (!compiledStyleDeclarationsByGroup) {
+		return undefined
+	}
 
 	const className = hashObject(compiledStyleDeclarationsByGroup)
-	const styleRules: StyleRule[] = entries(compiledStyleDeclarationsByGroup).map(
-		([group, styles]) => {
-			if (group === "") {
-				// Base group
-				return `.${className}{${styles}}`
-			} else if (group.startsWith("@")) {
-				// At rules
-				return `${group}{.${className}{${styles}}}`
-			} else {
-				// Nested Rules
-				const selector = group.replace(/&/g, `.${className}`)
-				return `${selector}{${styles}}`
-			}
-		},
+	const styleRules = rulesFromCompiledGroups(
+		compiledStyleDeclarationsByGroup,
+		`.${className}`,
 	)
 
 	return { styleRules, className }
+}
+
+/** Compile a style object against a selector (same nesting rules as `style()`). */
+export function compileGlobalStyleRules(
+	selector: string,
+	cssProperties: CSSProperties,
+): StyleRule[] {
+	return compileCSSPropertiesToRules(cssProperties, selector)
 }
 
 export type StyleArgument = CSSProperties | StyleElement | false | null | undefined
@@ -559,14 +598,16 @@ function styleElementToRules({ owned, composed }: StyleElement): StyleRule[] {
 
 export function useInjectGlobalStyles(
 	selector: string,
-	cssProperties: Declarations,
+	cssProperties: CSSProperties,
 	deps: DependencyList,
 ) {
 	const styleApi = useRequiredContext(PurseContext)
 
 	useLayoutEffect(() => {
-		const styleRule = `${selector}{${compileDeclarations(cssProperties)}}`
-		const destructor = styleApi.addGlobalStyle(styleRule)
+		const styleRules = compileGlobalStyleRules(selector, cssProperties)
+		const destructor = joinDestructors(
+			styleRules.map((styleRule) => styleApi.addGlobalStyle(styleRule)),
+		)
 
 		return destructor
 	}, deps)
