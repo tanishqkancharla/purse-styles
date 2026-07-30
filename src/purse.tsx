@@ -92,6 +92,7 @@ type NestedRuleKey =
 	| `${CSS.AtRules}${string}`
 	| `.${string}`
 	| `&${string}`
+	| `${string} &`
 
 export type CSSProperties = {
 	[Key in keyof BaseCSSProperties]?: BaseCSSProperties[Key]

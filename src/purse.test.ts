@@ -1,7 +1,12 @@
 import assert from "assert"
 import { expect } from "extendable-expect"
-import { describe, it } from "vitest"
-import { InMemoryStyleApi, createInMemoryStyleApi, style } from "./purse"
+import { describe, expectTypeOf, it } from "vitest"
+import {
+	CSSProperties,
+	InMemoryStyleApi,
+	createInMemoryStyleApi,
+	style,
+} from "./purse"
 
 describe("Purse", () => {
 	const expectStyles = expect.extend({
@@ -85,6 +90,29 @@ describe("Purse", () => {
 			`.${test.className}:disabled:hover{background-color:red;}`,
 			`.${test.className}:hover{background-color:green;}`,
 		])
+	})
+
+	it("Compiles ancestor selectors", () => {
+		const api = createInMemoryStyleApi()
+
+		const test = style({
+			"[data-open] &": {
+				opacity: 1,
+			},
+		})
+
+		api.addStyleElement(test)
+		expectStyles(api).toOnlyContainRules([
+			`[data-open] .${test.className}{opacity:1;}`,
+		])
+	})
+
+	it("Accepts ancestor selectors in CSSProperties", () => {
+		expectTypeOf({
+			"[data-open] &": {
+				opacity: 1,
+			},
+		}).toExtend<CSSProperties>()
 	})
 
 	it("Skips falsy style arguments", () => {
