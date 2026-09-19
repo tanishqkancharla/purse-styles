@@ -26,3 +26,8 @@ export type {
 	VariableGroupMetadata,
 	VariablePrimitive,
 } from "./cssVar"
+export { keyframes } from "./keyframes"
+export type {
+	KeyframesDefinition,
+	KeyframesName,
+} from "./keyframes"
