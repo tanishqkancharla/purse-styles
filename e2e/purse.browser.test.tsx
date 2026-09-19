@@ -361,3 +361,71 @@ test("injects global style objects with nested selectors", async () => {
 	await screen.unmount()
 	screen.container.remove()
 })
+
+test("applies nested hover styles inside hover media queries", async ({
+	renderStyledComponent,
+}) => {
+	const { subject } = await renderStyledComponent(
+		<button>Hoverable</button>,
+		{
+			backgroundColor: "blue",
+			"@media (hover: hover)": {
+				"&:hover": {
+					backgroundColor: "navy",
+				},
+			},
+		},
+	)
+
+	await expect.element(subject).toHaveComputedStyle({
+		backgroundColor: "rgb(0, 0, 255)",
+	})
+
+	await subject.hover()
+
+	await expect.element(subject).toHaveComputedStyle({
+		backgroundColor: "rgb(0, 0, 128)",
+	})
+})
+
+function GlobalHoverMediaStyles() {
+	useInjectGlobalStyles(
+		"[data-purse-global-hover]",
+		{
+			color: "red",
+			"@media (hover: hover)": {
+				"&:hover": {
+					color: "blue",
+				},
+			},
+		},
+		[],
+	)
+
+	return (
+		<a data-purse-global-hover data-testid="global-hover" href="#hover">
+			Hover
+		</a>
+	)
+}
+
+test("injects global nested hover styles inside media queries", async () => {
+	const screen = await render(<GlobalHoverMediaStyles />, {
+		wrapper: PurseProvider,
+	})
+
+	const link = page.getByTestId("global-hover")
+
+	await expect.element(link).toHaveComputedStyle({
+		color: "rgb(255, 0, 0)",
+	})
+
+	await link.hover()
+
+	await expect.element(link).toHaveComputedStyle({
+		color: "rgb(0, 0, 255)",
+	})
+
+	await screen.unmount()
+	screen.container.remove()
+})

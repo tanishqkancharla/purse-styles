@@ -87,16 +87,30 @@ type CustomProperties = {
 
 type Declarations = BaseCSSProperties & CustomProperties
 
+const WRAPPING_AT_RULES = [
+	"@media",
+	"@supports",
+	"@container",
+	"@layer",
+	"@scope",
+] as const
+
+type WrappingAtRule = (typeof WRAPPING_AT_RULES)[number]
+
+type WrappingAtRuleKey = `${WrappingAtRule}${string}`
+
 type NestedRuleKey =
 	| `&${CSS.SimplePseudos}`
-	| `${CSS.AtRules}${string}`
+	| WrappingAtRuleKey
 	| `.${string}`
 	| `&${string}`
+
+const WRAPPING_AT_RULE_SET: Set<string> = new Set(WRAPPING_AT_RULES)
 
 export type CSSProperties = {
 	[Key in keyof BaseCSSProperties]?: BaseCSSProperties[Key]
 } & CustomProperties & {
-	[Key in NestedRuleKey]?: Declarations
+	[Key in NestedRuleKey]?: CSSProperties
 }
 
 const PurseContext = createContext<StyleApi | undefined>(undefined)
@@ -417,10 +431,19 @@ function isObjectEmpty(obj: {}): boolean {
 	return Object.keys(obj).length === 0
 }
 
-type CSSPropertiesGroup = {
-	"": Declarations
-} & {
-	[Key in NestedRuleKey]?: Declarations
+function atRuleName(key: string): string | undefined {
+	return key.match(/^@[a-z-]+/i)?.[0]?.toLowerCase()
+}
+
+function assertWrappingAtRuleKey(key: string): void {
+	const name = atRuleName(key)
+	if (name !== undefined && WRAPPING_AT_RULE_SET.has(name)) {
+		return
+	}
+
+	throw new Error(
+		`At-rule "${name ?? key}" cannot be nested in style objects. Only wrapping at-rules are supported: ${WRAPPING_AT_RULES.join(", ")}.`,
+	)
 }
 
 function mergeCSSProperties(...groups: CSSProperties[]): CSSProperties {
@@ -429,21 +452,21 @@ function mergeCSSProperties(...groups: CSSProperties[]): CSSProperties {
 	for (const group of groups) {
 		for (const _propertyOrSelector in group) {
 			const propertyOrSelector = _propertyOrSelector as keyof typeof group
-			const isNestedRule = isObject(group[propertyOrSelector])
+			const incoming = group[propertyOrSelector]
+			const isNestedRule = isObject(incoming)
 
 			if (isNestedRule) {
-				// Type-casting to a key that only has nested rules
 				const selector = propertyOrSelector as NestedRuleKey
-				const existingStyles = merged[selector] || {}
+				const existingStyles = merged[selector]
 
-				merged[selector] = {
-					...existingStyles,
-					...group[selector],
-				}
+				merged[selector] = isObject(existingStyles)
+					? mergeCSSProperties(
+							existingStyles as CSSProperties,
+							incoming as CSSProperties,
+						)
+					: mergeCSSProperties(incoming as CSSProperties)
 			} else {
-				const property = propertyOrSelector as keyof BaseCSSProperties
-
-				;(merged as any)[property] = group[property]
+				;(merged as any)[propertyOrSelector] = incoming
 			}
 		}
 	}
@@ -451,40 +474,95 @@ function mergeCSSProperties(...groups: CSSProperties[]): CSSProperties {
 	return merged
 }
 
-function groupCSSProperties(properties: CSSProperties): CSSPropertiesGroup {
-	const styleDeclarationsBySelector: Record<string, any> = { "": {} }
+function makeGroupKey(atRules: string[], selector: string): string {
+	if (atRules.length === 0) {
+		return selector
+	}
+	if (selector === "") {
+		return atRules.join("|")
+	}
+	return `${atRules.join("|")}|${selector}`
+}
+
+function parseGroupKey(group: string): {
+	atRules: string[]
+	selector: string
+} {
+	if (group === "") {
+		return { atRules: [], selector: "" }
+	}
+
+	const parts = group.split("|")
+	const atRules: string[] = []
+	let selector = ""
+
+	for (const part of parts) {
+		if (part.startsWith("@")) {
+			atRules.push(part)
+		} else {
+			selector = part
+		}
+	}
+
+	return { atRules, selector }
+}
+
+function composeSelector(parentSelector: string, nestedKey: string): string {
+	if (parentSelector === "") {
+		return nestedKey
+	}
+	if (nestedKey.includes("&")) {
+		return nestedKey.replace(/&/g, parentSelector)
+	}
+	return nestedKey
+}
+
+function flattenCSSProperties(
+	properties: CSSProperties,
+	atRules: string[] = [],
+	selector: string = "",
+	groups: Record<string, Declarations> = {},
+): Record<string, Declarations> {
+	const declarations: Declarations = {}
+	const nestedRules: [string, CSSProperties][] = []
 
 	for (const _propertyOrSelector in properties) {
 		const propertyOrSelector = _propertyOrSelector as keyof typeof properties
 		const value = properties[propertyOrSelector]
 		if (value === undefined || value === null) continue
-		const isNestedRule = isObject(value)
 
-		if (isNestedRule) {
-			// Type-casting to a key that only has nested rules
-			const selector = propertyOrSelector as `&:${CSS.SimplePseudos}`
-			const existingStyles = styleDeclarationsBySelector[selector] || {}
-
-			styleDeclarationsBySelector[selector] = {
-				...existingStyles,
-				...properties[selector],
-			}
+		if (isObject(value)) {
+			nestedRules.push([_propertyOrSelector, value as CSSProperties])
 		} else {
-			const property = propertyOrSelector as keyof BaseCSSProperties
-			const value = (properties as any)[property]
-
-			styleDeclarationsBySelector[""][property] = value
+			;(declarations as any)[propertyOrSelector] = value
 		}
 	}
 
-	for (const selector in styleDeclarationsBySelector) {
-		const declarations = styleDeclarationsBySelector[selector]
-		if (declarations && isObjectEmpty(declarations)) {
-			delete styleDeclarationsBySelector[selector]
+	if (!isObjectEmpty(declarations)) {
+		const groupKey = makeGroupKey(atRules, selector)
+		const existing = groups[groupKey]
+		if (existing) {
+			Object.assign(existing, declarations)
+		} else {
+			groups[groupKey] = declarations
 		}
 	}
 
-	return styleDeclarationsBySelector as CSSPropertiesGroup
+	for (const [key, nested] of nestedRules) {
+		if (key.startsWith("@")) {
+			assertWrappingAtRuleKey(key)
+			flattenCSSProperties(nested, [...atRules, key], selector, groups)
+		} else {
+			flattenCSSProperties(
+				nested,
+				atRules,
+				composeSelector(selector, key),
+				groups,
+			)
+		}
+	}
+
+	return groups
 }
 
 function rulesFromCompiledGroups(
@@ -492,17 +570,17 @@ function rulesFromCompiledGroups(
 	targetSelector: string,
 ): StyleRule[] {
 	return entries(compiledStyleDeclarationsByGroup).map(([group, styles]) => {
-		if (group === "") {
-			// Base group
-			return `${targetSelector}{${styles}}`
-		} else if (group.startsWith("@")) {
-			// At rules
-			return `${group}{${targetSelector}{${styles}}}`
-		} else {
-			// Nested Rules
-			const selector = group.replace(/&/g, targetSelector)
-			return `${selector}{${styles}}`
+		const { atRules, selector } = parseGroupKey(group)
+		const resolvedSelector =
+			selector === ""
+				? targetSelector
+				: selector.replace(/&/g, targetSelector)
+
+		let rule = `${resolvedSelector}{${styles}}`
+		for (let i = atRules.length - 1; i >= 0; i--) {
+			rule = `${atRules[i]}{${rule}}`
 		}
+		return rule
 	})
 }
 
@@ -513,7 +591,7 @@ function compileStyleDeclarationGroups(
 		return undefined
 	}
 
-	return mapValues(groupCSSProperties(properties), (declarations) =>
+	return mapValues(flattenCSSProperties(properties), (declarations) =>
 		compileDeclarations(declarations ?? {}),
 	)
 }
