@@ -88,9 +88,29 @@ describe("Purse", () => {
 
 		expectStyles(api).toOnlyContainRules([
 			`.${test.className}:disabled{background-color:blue;}`,
-			`.${test.className}:disabled:hover{background-color:red;}`,
-			`.${test.className}:hover{background-color:green;}`,
+			`.${test.className}:disabled:hover{@media (hover: hover){background-color:red;}}`,
+			`.${test.className}:hover{@media (hover: hover){background-color:green;}}`,
 		])
+	})
+
+	it("Wraps only the :hover branches of a selector list in (hover: hover)", () => {
+		const api = createInMemoryStyleApi()
+
+		const test = style({
+			"&:hover, &[data-pressed]": { color: "red" },
+			"&:not(:hover), &[title='a:hover,b']": { color: "blue" },
+			"& .hovered:focus": { color: "green" },
+		})
+
+		api.addStyleElement(test)
+		const c = test.owned.className
+		expectStyles(api).toOnlyContainRules([
+			`.${c}:hover{@media (hover: hover){color:red;}}`,
+			`.${c}[data-pressed]{color:red;}`,
+			`.${c}:not(:hover), .${c}[title='a:hover,b']{color:blue;}`,
+			`.${c} .hovered:focus{color:green;}`,
+		])
+		expectStyles(api).toHaveCount(4)
 	})
 
 	it("Skips falsy style arguments", () => {
