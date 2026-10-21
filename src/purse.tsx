@@ -501,23 +501,97 @@ function groupCSSProperties(properties: CSSProperties): CSSPropertiesGroup {
 	return styleDeclarationsBySelector as CSSPropertiesGroup
 }
 
+type SelectorBranch = { selector: string; hover: boolean }
+
+/**
+ * Splits a selector list on top-level commas and marks the branches that use
+ * `:hover`. Commas and `:hover` inside strings, comments, attribute selectors,
+ * or functional pseudo-classes such as `:is()` don't count.
+ */
+function hoverSelectorBranches(selector: string): SelectorBranch[] {
+	const branches: SelectorBranch[] = []
+	let start = 0
+	let brackets = 0
+	let parentheses = 0
+	let quote = ""
+	let hover = false
+
+	for (let i = 0; i < selector.length; i++) {
+		const char = selector[i]
+
+		if (char === "\\") {
+			i++
+			continue
+		}
+		if (quote) {
+			if (char === quote) quote = ""
+			continue
+		}
+		if (char === '"' || char === "'") {
+			quote = char
+			continue
+		}
+		if (char === "/" && selector[i + 1] === "*") {
+			const end = selector.indexOf("*/", i + 2)
+			i = end === -1 ? selector.length : end + 1
+			continue
+		}
+
+		if (char === "[") brackets++
+		if (char === "]") brackets--
+		if (brackets) continue
+		if (char === "(") parentheses++
+		if (char === ")") parentheses--
+		if (parentheses) continue
+
+		if (
+			char === ":" &&
+			selector[i - 1] !== ":" &&
+			/^:hover(?![\w\-\\\u0080-\uFFFF])/i.test(selector.slice(i))
+		) {
+			hover = true
+		}
+		if (char === ",") {
+			branches.push({ selector: selector.slice(start, i), hover })
+			start = i + 1
+			hover = false
+		}
+	}
+
+	branches.push({ selector: selector.slice(start), hover })
+	return branches
+}
+
 function rulesFromCompiledGroups(
 	compiledStyleDeclarationsByGroup: Record<string, string>,
 	targetSelector: string,
 ): StyleRule[] {
-	return entries(compiledStyleDeclarationsByGroup).map(([group, styles]) => {
-		if (group === "") {
-			// Base group
-			return `${targetSelector}{${styles}}`
-		} else if (group.startsWith("@")) {
-			// At rules
-			return `${group}{${targetSelector}{${styles}}}`
-		} else {
-			// Nested Rules
-			const selector = group.replace(/&/g, targetSelector)
-			return `${selector}{${styles}}`
-		}
-	})
+	return entries(compiledStyleDeclarationsByGroup).flatMap(
+		([group, styles]) => {
+			if (group === "") {
+				// Base group
+				return `${targetSelector}{${styles}}`
+			} else if (group.startsWith("@")) {
+				// At rules
+				return `${group}{${targetSelector}{${styles}}}`
+			} else {
+				// Nested Rules
+				const selector = group.replace(/&/g, targetSelector)
+				const branches = hoverSelectorBranches(selector)
+				if (!branches.some((branch) => branch.hover)) {
+					return `${selector}{${styles}}`
+				}
+
+				// Touch devices emulate :hover on tap and leave it stuck, so
+				// hover rules only apply where the primary pointer can hover.
+				return branches.map((branch) =>
+					branch.hover
+						? `${branch.selector.trim()}{@media (hover: hover){${styles}}}`
+						: `${branch.selector.trim()}{${styles}}`,
+				)
+			}
+		},
+	)
 }
 
 function compileStyleDeclarationGroups(
