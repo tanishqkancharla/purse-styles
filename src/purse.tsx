@@ -93,10 +93,18 @@ type NestedRuleKey =
 	| `.${string}`
 	| `&${string}`
 
+/**
+ * Value under a pattern key (`--*` custom property or nested rule). Both share
+ * one value type because TypeScript widens computed keys such as
+ * `` [`&[data-selected] ${part}`] `` to `string`, and a `string` key must fit
+ * every pattern signature at once.
+ */
+type PatternValue = Declarations | string | number | undefined
+
 export type CSSProperties = {
 	[Key in keyof BaseCSSProperties]?: BaseCSSProperties[Key]
-} & CustomProperties & {
-	[Key in NestedRuleKey]?: Declarations
+} & {
+	[Key in `--${string}` | NestedRuleKey]?: PatternValue
 }
 
 const PurseContext = createContext<StyleApi | undefined>(undefined)
@@ -113,11 +121,17 @@ type StyleRule = string
 export type StyleElement = {
 	__style__: typeof __style__
 	composed: StyleElement[]
-	owned?: {
+	/** This style's own class. Present even when it only composes other styles. */
+	owned: {
 		styleRules: StyleRule[]
 		className: string
 	}
 	className: string
+	/**
+	 * The own class as a selector, so a style interpolates into nested rules:
+	 * `` [`&[data-selected] ${part}`]: { … } ``.
+	 */
+	toString(): string
 }
 
 function isStyleElement(o: unknown): o is StyleElement {
@@ -437,8 +451,8 @@ function mergeCSSProperties(...groups: CSSProperties[]): CSSProperties {
 				const existingStyles = merged[selector] || {}
 
 				merged[selector] = {
-					...existingStyles,
-					...group[selector],
+					...(existingStyles as Declarations),
+					...(group[selector] as Declarations),
 				}
 			} else {
 				const property = propertyOrSelector as keyof BaseCSSProperties
@@ -467,7 +481,7 @@ function groupCSSProperties(properties: CSSProperties): CSSPropertiesGroup {
 
 			styleDeclarationsBySelector[selector] = {
 				...existingStyles,
-				...properties[selector],
+				...(properties[selector] as Declarations),
 			}
 		} else {
 			const property = propertyOrSelector as keyof BaseCSSProperties
@@ -534,7 +548,9 @@ function compileCSSPropertiesToRules(
 	)
 }
 
-function compileCSS(properties: CSSProperties): StyleElement["owned"] {
+function compileCSS(
+	properties: CSSProperties,
+): StyleElement["owned"] | undefined {
 	const compiledStyleDeclarationsByGroup =
 		compileStyleDeclarationGroups(properties)
 	if (!compiledStyleDeclarationsByGroup) {
@@ -577,17 +593,26 @@ export function style(...styleElementsOrCSS: StyleArgument[]): StyleElement {
 	}
 
 	const cssProperties = mergeCSSProperties(...cssPropertyGroups)
-	const owned = compileCSS(cssProperties)
-
 	const composedClassNames = composed.map((composed) => composed.className)
-	const className = clsx(...composedClassNames, owned?.className)
+	// A style with no declarations of its own still gets a class, named after
+	// what it composes, so it can be targeted as a selector.
+	const owned = compileCSS(cssProperties) ?? {
+		styleRules: [],
+		className: hashObject({ composed: composedClassNames }),
+	}
+	const className = clsx(...composedClassNames, owned.className)
 
 	return {
 		__style__,
 		composed,
 		className,
 		owned,
+		toString: ownClassSelector,
 	}
+}
+
+function ownClassSelector(this: StyleElement): string {
+	return `.${this.owned.className}`
 }
 
 function styleElementToRules({ owned, composed }: StyleElement): StyleRule[] {
