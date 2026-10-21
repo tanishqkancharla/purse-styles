@@ -23,6 +23,13 @@ const button = style({
 	},
 })
 
+// A style interpolates as its own class selector, so a parent can style a child
+const icon = style({ opacity: 0.5 })
+const row = style({
+	"&:hover": { backgroundColor: indigo.indigo3 },
+	[`&:hover ${icon}`]: { opacity: 1 },
+})
+
 // Use styles in your components dynamically
 const buttonClassName = useStyles(
 	props.quiet ? quietButtonStyles : buttonStyles,

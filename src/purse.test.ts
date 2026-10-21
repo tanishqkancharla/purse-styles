@@ -182,6 +182,32 @@ describe("Purse", () => {
 		expectTypeOf(cssProperties).toExtend<CSSProperties>()
 	})
 
+	it("Interpolates a style as its own class selector in nested rules", () => {
+		const api = createInMemoryStyleApi()
+		const part = style({ color: "red" })
+		const root = style({
+			position: "relative",
+			[`&[data-selected] ${part}`]: { color: "blue" },
+		} satisfies CSSProperties)
+
+		api.addStyleElement(root)
+		expectStyles(api).toOnlyContainRules([
+			`.${root.owned.className}{position:relative;}`,
+			`.${root.owned.className}[data-selected] .${part.owned.className}{color:blue;}`,
+		])
+	})
+
+	it("Gives a style that only composes others its own class", () => {
+		const token = style({ color: "red" })
+		const left = style(token)
+		const right = style(token, style({ margin: 0 }))
+
+		assert.notEqual(`${left}`, `${token}`)
+		assert.notEqual(`${left}`, `${right}`)
+		expect(left.className).toEqual(`${token.className} ${left.owned.className}`)
+		expect(left.owned.styleRules).toEqual([])
+	})
+
 	it.skip("Inserts into given style element correctly", () => {})
 	it.skip("Works if you pass style rule or object to useStyles", () => {})
 	it.skip("Works if you pass multiple style rule or object to useStyles", () => {})
