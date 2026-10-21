@@ -1,0 +1,155 @@
+name: Publish npm
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+concurrency:
+  group: publish-purse-styles
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  publish:
+    name: Publish purse-styles
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      github.ref_type == 'tag' ||
+      (
+        github.event_name == 'push' &&
+        github.ref == 'refs/heads/main' &&
+        !contains(github.event.head_commit.message, '[skip release]') &&
+        !startsWith(github.event.head_commit.message, 'Release v')
+      )
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Use latest main for branch releases
+        if: github.ref_type == 'branch'
+        run: |
+          git fetch origin main --tags --force
+          git checkout main
+          git pull --ff-only origin main
+
+      - name: Skip if this commit is already released
+        if: github.ref_type != 'tag'
+        id: skip
+        run: |
+          EXISTING="$(git tag -l 'v*.*.*' --points-at HEAD | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n1 || true)"
+          if [ -n "$EXISTING" ]; then
+            echo "HEAD is already tagged $EXISTING; skipping."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up Node.js
+        if: steps.skip.outputs.skip != 'true'
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          registry-url: https://registry.npmjs.org
+
+      - name: Install dependencies
+        if: steps.skip.outputs.skip != 'true'
+        run: npm ci
+
+      - name: Update npm
+        if: steps.skip.outputs.skip != 'true'
+        run: npm install --global npm@latest
+
+      - name: Resolve release version
+        if: steps.skip.outputs.skip != 'true'
+        id: version
+        run: |
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            VERSION="$(node -p "require('./package.json').version")"
+            TAG="${GITHUB_REF_NAME}"
+            EXPECTED="v${VERSION}"
+            if [ "$TAG" != "$EXPECTED" ]; then
+              echo "Tag '$TAG' must equal 'v' plus package.json version '$VERSION' (expected $EXPECTED)"
+              exit 1
+            fi
+            echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+            echo "bump=false" >> "$GITHUB_OUTPUT"
+          else
+            node scripts/next-release-version.mjs --json | tee /tmp/purse-styles-release.json
+            VERSION="$(node -p "JSON.parse(require('fs').readFileSync('/tmp/purse-styles-release.json','utf8')).version")"
+            BUMP="$(node -p "String(JSON.parse(require('fs').readFileSync('/tmp/purse-styles-release.json','utf8')).bump)")"
+            if npm view "purse-styles@${VERSION}" version >/dev/null 2>&1; then
+              echo "npm already has purse-styles@${VERSION}"
+              exit 1
+            fi
+            echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+            echo "bump=$BUMP" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Bump package.json
+        if: steps.skip.outputs.skip != 'true' && steps.version.outputs.bump == 'true'
+        run: npm version "${{ steps.version.outputs.version }}" --no-git-tag-version
+
+      - name: Type-check
+        if: steps.skip.outputs.skip != 'true'
+        run: npm run check
+
+      - name: Build library
+        if: steps.skip.outputs.skip != 'true'
+        run: npm run build
+
+      - name: Install Chromium
+        if: steps.skip.outputs.skip != 'true'
+        run: npx playwright install --with-deps chromium
+
+      - name: Test
+        if: steps.skip.outputs.skip != 'true'
+        run: npm run test:run
+        env:
+          CI: 1
+
+      - name: Check bundle size
+        if: steps.skip.outputs.skip != 'true'
+        run: npm run bundlesize
+
+      - name: Inspect tarball
+        if: steps.skip.outputs.skip != 'true'
+        run: npm pack --dry-run
+
+      - name: Commit, tag, and push
+        if: steps.skip.outputs.skip != 'true' && github.ref_type != 'tag'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if ! git diff --quiet -- package.json package-lock.json; then
+            git add package.json package-lock.json
+            git commit -m "Release v${VERSION}"
+          fi
+          git pull --rebase origin main
+          git tag "v${VERSION}"
+          git push origin HEAD:main
+          git push origin "v${VERSION}"
+
+      - name: Publish to npm
+        if: steps.skip.outputs.skip != 'true'
+        run: |
+          VERSION="$(node -p "require('./package.json').version")"
+          if npm view "purse-styles@$VERSION" version >/dev/null 2>&1; then
+            echo "purse-styles@$VERSION is already published"
+          else
+            npm publish --access public --provenance
+          fi
