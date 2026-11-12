@@ -272,40 +272,48 @@ export function PurseProvider(props: { children?: React.ReactNode }) {
 			InsertedStyleElement
 		>()
 
+		// Rules go through the CSSOM rather than as Text children: changing a
+		// <style> element's children makes the browser re-parse the whole sheet,
+		// while insertRule/deleteRule parse only the one rule. At-rules go in a
+		// second sheet after the first so they win over base rules.
+		//
+		// Each sheet's rules, in sheet order, so removing one finds its index
+		// in a plain array; walking the live `cssRules` list costs more than
+		// the deleteRule itself once a sheet holds a thousand rules.
+		const rulesBySheet = new WeakMap<CSSStyleSheet, CSSRule[]>()
+
 		function addStyleRule(rule: StyleRule): Destructor {
-			const styleSheet = htmlStyleElement.sheet
-			if (!styleSheet)
-				throw new Error(`Could not get style sheet of style element`)
+			const ruleElement = rule.startsWith("@")
+				? atRuleHtmlStyleElement
+				: htmlStyleElement
+			const sheet = ruleElement.sheet
+			if (!sheet) throw new Error(`Could not get style sheet of style element`)
 
+			let rules = rulesBySheet.get(sheet)
+			if (!rules) rulesBySheet.set(sheet, (rules = []))
+
+			let cssRule: CSSRule
 			try {
-				// TODO: do these in dev
-				// styleSheet.insertRule(styleRule, insertPosition)
-
-				const isAtRule = rule.startsWith("@")
-				const styleText = new Text(rule)
-
-				if (isAtRule) {
-					// atRuleStyleElement.sheet?.insertRule(rule)
-
-					// We add as Text here because otherwise, the styles don't show up in chrome dev tools
-					atRuleHtmlStyleElement.appendChild(styleText)
-
-					return () => atRuleHtmlStyleElement.removeChild(styleText)
-				} else {
-					// styleSheet?.insertRule(rule)
-					htmlStyleElement.appendChild(styleText)
-
-					return () => {
-						htmlStyleElement.removeChild(styleText)
-					}
-				}
+				cssRule = sheet.cssRules[sheet.insertRule(rule, sheet.cssRules.length)]!
 			} catch (error) {
-				if (DEV) {
-					throw new Error(`Could not add style rule ${rule}`)
-				} else {
-					console.warn(`Could not add style rule ${rule}`)
-					return () => {}
-				}
+				// The browser rejects rules it can't parse, such as another
+				// engine's prefixed pseudo-element. A Text node would drop them
+				// silently, so this does too, and only warns in development.
+				if (DEV) console.warn(`Could not add style rule ${rule}`, error)
+				return () => {}
+			}
+			rules.push(cssRule)
+
+			return () => {
+				const mirrorIndex = rules.indexOf(cssRule)
+				if (mirrorIndex === -1) return
+				rules.splice(mirrorIndex, 1)
+				// Someone else may have changed the sheet, so check the index.
+				const index =
+					sheet.cssRules[mirrorIndex] === cssRule
+						? mirrorIndex
+						: Array.prototype.indexOf.call(sheet.cssRules, cssRule)
+				if (index !== -1) sheet.deleteRule(index)
 			}
 		}
 
