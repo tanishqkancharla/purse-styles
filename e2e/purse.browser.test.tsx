@@ -2,9 +2,11 @@ import { page } from "vitest/browser"
 import { render } from "vitest-browser-react/pure"
 import {
 	PurseProvider,
+	type StyleElement,
 	defineVars,
 	style,
 	useInjectGlobalStyles,
+	useStyles,
 } from "../src/index"
 import { expect, test } from "./fixtures/test"
 
@@ -357,6 +359,65 @@ test("injects global style objects with nested selectors", async () => {
 	await expect.element(link).toHaveComputedStyle({
 		color: "rgb(0, 0, 255)",
 	})
+
+	await screen.unmount()
+	screen.container.remove()
+})
+
+function StyleUser({ styleElement }: { styleElement: StyleElement }) {
+	useStyles(styleElement)
+	return null
+}
+
+function StyleUsers({ users }: { users: StyleElement[] }) {
+	return (
+		<div style={{ color: COLOR_4 }}>
+			{users.map((styleElement, index) => (
+				<StyleUser key={index} styleElement={styleElement} />
+			))}
+			<span data-testid="first" className={removalFirst.className} />
+			<span data-testid="second" className={removalSecond.className} />
+			<span data-testid="third" className={removalThird.className} />
+		</div>
+	)
+}
+
+const removalFirst = style({ color: COLOR_1 })
+const removalSecond = style({
+	color: COLOR_2,
+	// Chrome rejects this selector; the rest of the style still applies.
+	"&::-moz-selection": { color: COLOR_3 },
+})
+const removalThird = style({ color: COLOR_3 })
+
+test("removes a style's rules when its last user unmounts", async () => {
+	const screen = await render(
+		<StyleUsers
+			users={[removalFirst, removalSecond, removalSecond, removalThird]}
+		/>,
+		{ wrapper: PurseProvider },
+	)
+	const first = page.getByTestId("first")
+	const second = page.getByTestId("second")
+	const third = page.getByTestId("third")
+
+	await expect.element(first).toHaveComputedStyle({ color: COLOR_1 })
+	await expect.element(second).toHaveComputedStyle({ color: COLOR_2 })
+	await expect.element(third).toHaveComputedStyle({ color: COLOR_3 })
+
+	await screen.rerender(
+		<StyleUsers users={[removalFirst, removalSecond, removalThird]} />,
+	)
+	await expect.element(second).toHaveComputedStyle({ color: COLOR_2 })
+
+	await screen.rerender(<StyleUsers users={[removalFirst, removalThird]} />)
+	await expect.element(first).toHaveComputedStyle({ color: COLOR_1 })
+	await expect.element(second).toHaveComputedStyle({ color: COLOR_4 })
+	await expect.element(third).toHaveComputedStyle({ color: COLOR_3 })
+
+	await screen.rerender(<StyleUsers users={[removalFirst]} />)
+	await expect.element(first).toHaveComputedStyle({ color: COLOR_1 })
+	await expect.element(third).toHaveComputedStyle({ color: COLOR_4 })
 
 	await screen.unmount()
 	screen.container.remove()
